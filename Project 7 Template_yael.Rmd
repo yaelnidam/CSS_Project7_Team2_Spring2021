@@ -56,11 +56,24 @@ Create plots and provide 1-2 sentence analyses to answer the following questions
 - Which states were home to most uninsured Americans prior to 2014? How about in 2021? **Note**: 2010 state population is provided as a variable to answer this question. In an actual study you would likely use population estimates over time, but to simplify you can assume these numbers stay about the same.
 
 ```{r}
-# highest and lowest uninsured rates
+# highest uninsured rates
+head(
+medicaid_expansion%>%filter(year<2014)%>%arrange(-uninsured_rate)
+)
+# lowest uninsured rates
+head(
+medicaid_expansion%>%filter(year<2014)%>%arrange(uninsured_rate)
+)
 ```
 
 ```{r}
 # most uninsured Americans
+head(
+medicaid_expansion%>%
+  mutate(uninsured_pop = uninsured_rate*population)%>%
+  filter(year<2014)%>%
+  arrange(-uninsured_pop)
+)
 ```
 
 
@@ -74,13 +87,64 @@ Do the following:
 - Assess the parallel trends assumption for your choices using a plot. If you are not satisfied that the assumption has been met, pick another state and try again (but detail the states you tried).
 
 ```{r}
+#Identify states that never adopted medicaid
+medicaid_expansion %>% filter(is.na(Date_Adopted)) %>%group_by(State)%>%summarise(mean_uninsured_rate=mean(uninsured_rate))
+```
+
+```{r}
 # Parallel Trends plot
+medicaid_expansion %>%
+  filter(State %in% c("California","Georgia","Florida","Oklahoma")) %>%
+  # filter(year_qtr >= 2012.5 & year_qtr<= 2012.75) %>%
+  ggplot() + 
+  geom_point(aes(x = year, 
+                 y = uninsured_rate, 
+                 color = State)) +
+  geom_line(aes(x = year, 
+                y = uninsured_rate, 
+                color = State)) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  geom_vline(aes(xintercept = 2013)) +
+  ggtitle('California and Georgia uninsured rate before/after California adopts medicaid') +
+  xlab('Year') +
+  ylab('Uninsured Rate')
+#we can see that visually Georgia is a good candidate
 ```
 
 - Estimates a difference-in-differences estimate of the effect of the Medicaid expansion on the uninsured share of the population. You may follow the lab example where we estimate the differences in one pre-treatment and one post-treatment period, or take an average of the pre-treatment and post-treatment outcomes
 
 ```{r}
 # Difference-in-Differences estimation
+cg <- medicaid_expansion %>%
+  filter(State %in% c("California","Georgia")) 
+# %>%
+  # filter(year >= 2013 & year<= 2015) 
+
+# pre-treatment difference
+
+pre_diff <- cg %>%
+  filter(year == 2013) %>%
+  select(State, 
+         uninsured_rate) %>%
+  spread(State, 
+         uninsured_rate) %>%
+  summarise(California - Georgia)
+  
+# post-treatment difference
+
+post_diff <- cg %>%
+  filter(year == 2015) %>%
+  select(State, 
+         uninsured_rate) %>%
+  spread(State, 
+         uninsured_rate) %>%
+  summarise(California - Georgia)
+
+# diff-in-diffs
+
+diff_in_diffs <- post_diff - pre_diff
+diff_in_diffs
 ```
 
 
@@ -103,6 +167,9 @@ Do the following:
 
 - Choose a state that adopted the Medicaid expansion after January 1, 2014. Construct a non-augmented synthetic control and plot the results (both pre-treatment fit and post-treatment differences). Also report the average ATT and L2 imbalance.
 
+We choose California as a case study for this example. California had a relatively high uninsuraed rate (17%) in 2013, adn because of its large population size it had the most uninsured Americans in the years prior to implementing medicaid.  
+
+For the Synthethic model to make more sense we include only states that adopted Medicaid the same time as California (1/1/2014) and states that never adopted that policy
 ```{r}
 syn_cal = medicaid_expansion %>% mutate(year_adopted = format(Date_Adopted, format="%Y")
                               ,adopted = if_else(year_adopted<=year,1,0)
