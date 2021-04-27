@@ -1,11 +1,14 @@
 ---
 title: "Project 7: Difference-in-Differences and Synthetic Control"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
+Group Members: Yael, Anthony, Renata and Hero 
 
 ```{r}
-.libPaths("C:/Program Files/R/R-4.0.5/library")
+#.libPaths("C:/Program Files/R/R-4.0.5/library")
 # Install and load packages 
 if (!require("pacman")) install.packages("pacman")
 
@@ -104,13 +107,12 @@ Do the following:
 - Choose a state that adopted the Medicaid expansion after January 1, 2014. Construct a non-augmented synthetic control and plot the results (both pre-treatment fit and post-treatment differences). Also report the average ATT and L2 imbalance.
 
 ```{r}
-syn_cal = medicaid_expansion %>% mutate(year_adopted = format(Date_Adopted, format="%Y")
-                              ,adopted = if_else(year_adopted<=year,1,0)
-                              ,adopted2 = if_else(is.na(adopted),0,adopted)
-                              ,treated=if_else(State=="California" &adopted2==1 ,1,0)
-                              )%>% 
-                              # filter(Date_Adopted=="2014-01-01" | is.na(Date_Adopted))
-                              filter(State=="California" | is.na(Date_Adopted))
+syn_cal = medicaid_expansion %>% 
+  mutate(year_adopted = format(Date_Adopted, format="%Y"),
+         adopted = if_else(year_adopted<=year,1,0),
+         adopted2 = if_else(is.na(adopted),0,adopted), 
+         treated=if_else(State=="California" &adopted2==1 ,1,0))%>%                               # filter(Date_Adopted=="2014-01-01" | is.na(Date_Adopted))   
+  filter(State=="California" | is.na(Date_Adopted))
 
 
 # non-augmented synthetic control
@@ -269,28 +271,180 @@ Cal_synCal_ridgesynCal %>%
 # Staggered Adoption Synthetic Control
 
 ## Estimate Multisynth
+In the synthetic control model above, we limited our donor pool to states that never adopted Medicaid expansion, so that we can estimate the ATE for the effect of introducing Medicaid expansion relative to not having Medicaid expansion. This limits us to estimating the effect of Medicaid expansion for California. However, we might want to estimate the effect overall, using all possible states as treatment when they do adopt Medicaid expansion. To do this, we have use a staggered adoption synthetic control model. 
 
-Do the following:
+**Multisynth Model with Individual States**
 
-- Estimate a multisynth model that treats each state individually. Choose a fraction of states that you can fit on a plot and examine their treatment effects.
+We first fit a model that estimates a separate synthetic control for each treated state, and then averages the ATEs from each state. 
 
 ```{r}
 # multisynth model states
+mult_d <- medicaid_expansion %>%
+  mutate(year_adopted = format(Date_Adopted, "%Y"),
+         treated = case_when(year >= year_adopted ~ 1,
+                             year < year_adopted ~ 0,
+                             TRUE ~ 0)) %>%
+  # drop MA b/c they always had a version of Medicaid expansion
+  filter(State != "Massachusetts")
+
+multsyn_state <- multisynth(uninsured_rate ~ treated,
+                            unit = State,
+                            time = year,
+                            data = mult_d,
+                            nu = 0,
+                            n_leads = 10)
+
+summary(multsyn_state)
 ```
 
-- Estimate a multisynth model using time cohorts. For the purpose of this exercise, you can simplify the treatment time so that states that adopted Medicaid expansion within the same year (i.e. all states that adopted epxansion in 2016) count for the same cohort. Plot the treatment effects for these time cohorts.
+The multisynth model used above estimates a significant ATE of -0.018. We estimate the ATE for the maximum number of years post-treatment and see that the effect actually gets larger over time (though levels off 5/6 years after treatment). 
+
+The plot below shows the ATE for the 5 states with the highest ATE, the 5 states with the lowest ATE and the average across all states. 
+```{r, warning = FALSE}
+mult_state_sum <- summary(multsyn_state)
+
+high5 <- mult_state_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(Estimate) %>%
+  head(5) %>%
+  select(Level) %>% pull()
+
+low5 <-  mult_state_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(Estimate) %>%
+  tail(5) %>%
+  select(Level) %>% pull()
+  
+mult_state_sum$att %>%
+  filter(Level %in% c("Average", low5, high5)) %>%
+  filter(!is.na(Time) & !is.na(Estimate)) %>%
+  ggplot(aes(x = Time, y = Estimate, color = Level)) +
+  geom_point() +
+  geom_line() +
+  geom_line(data = filter(mult_state_sum$att, Level == "Average"), aes(x = Time, y = Estimate), size = 1.5) +
+  geom_vline(xintercept = 0) +
+  theme_bw() +
+  theme(axis.title = element_text(),
+        legend.position = "bottom") +
+  labs(title = 'Synthetic Controls for Medicaid Expansion',
+       subtitle = "Estimated for each state separately"  ) +
+  xlab('Time') +
+  ylab('ATE')
+
+```
+
+**Multisynth Model using Time Cohorts**
+
+Now, instead of constructing synthetic controls for each state, we pool states based on their year of adoption and create synthetic control for each time cohort.  
 
 ```{r}
 # multisynth model time cohorts
+multsyn_time <- multisynth(uninsured_rate ~ treated,
+                            unit = State,
+                            time = year,
+                            data = mult_d,
+                            nu = 1,
+                            n_leads = 10)
+
+summary(multsyn_time)
 ```
 
-## Discussion Questions
+The plot below shows the ATE estimated for each state based on the synthetic control for that state's time cohort. The average is still negative, but it is a smaller magnitude than the ATE estimated from the individual states synthetic controls above. There is overlap in the states with the most positive ATE (meaning their uninsurance rate actually increased after adoption) between the time cohort method and the individual state method. Likewise, for the states with the most negative ATE. 
 
-- One feature of Medicaid is that it is jointly administered by the federal government and the states, and states have some flexibility in how they implement Medicaid. For example, during the Trump administration, several states applied for waivers where they could add work requirements to the eligibility standards (i.e. an individual needed to work for 80 hours/month to qualify for Medicaid). Given these differences, do you see evidence for the idea that different states had different treatment effect sizes?
-- **Answer**: 
+```{r, warning = FALSE}
+mult_time_sum <- summary(multsyn_time)
 
-- Do you see evidence for the idea that early adopters of Medicaid expansion enjoyed a larger decrease in the uninsured population?
-- **Answer**: 
+high5 <- mult_time_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(Estimate) %>%
+  head(5) %>%
+  select(Level) %>% pull()
+
+low5 <-  mult_time_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(Estimate) %>%
+  tail(5) %>%
+  select(Level) %>% pull()
+  
+mult_time_sum$att %>%
+  filter(Level %in% c("Average", low5, high5)) %>%
+  filter(!is.na(Time) & !is.na(Estimate)) %>%
+  ggplot(aes(x = Time, y = Estimate, color = Level)) +
+  geom_point() +
+  geom_line() +
+  geom_line(data = filter(mult_time_sum$att, Level == "Average"), aes(x = Time, y = Estimate), size = 1.5) +
+  geom_vline(xintercept = 0) +
+  theme_bw() +
+  theme(axis.title = element_text(),
+        legend.position = "bottom") +
+  labs(title = 'Synthetic Controls for Medicaid Expansion',
+       subtitle = "Estimated for time cohorts of states"  ) +
+  xlab('Time') +
+  ylab('ATE')
+```
+
+
+## Staggered Adoption Discussion Questions
+
+*One feature of Medicaid is that it is jointly administered by the federal government and the states, and states have some flexibility in how they implement Medicaid. For example, during the Trump administration, several states applied for waivers where they could add work requirements to the eligibility standards (i.e. an individual needed to work for 80 hours/month to qualify for Medicaid). Given these differences, do you see evidence for the idea that different states had different treatment effect sizes?*
+
+```{r, echo = F}
+min <- mult_state_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(Estimate) %>%
+  head(1) %>%
+  select(Estimate) %>% pull()
+
+max <- mult_state_sum$att %>%
+  filter(is.na(Time)) %>%
+  arrange(-Estimate) %>%
+  head(1) %>%
+  select(Estimate) %>% pull()
+
+```
+
+
+**Answer**: We see evidence that states had different treatment effect sizes. Even though the average ATE is negative, states range in the average ATE over the whole time period from `r round(min,4)` to `r round(max,4)` (using the estimates from the separate state model). This means that some states actually increased the share of uninsured persons when they adopted Medicaid. This could be explained by the work requirements they put in place, which block people from accessing Medicaid. 
+
+*Do you see evidence for the idea that early adopters of Medicaid expansion enjoyed a larger decrease in the uninsured population?*
+```{r, echo = F, warning = F}
+# adopted in 2014
+early_adopt <- mult_d %>%
+  filter(year_adopted == 2014) %>%
+  group_by(State) %>%
+  slice(1) %>%
+  select(State) %>% pull()
+
+late_adopt <- mult_d %>%
+  filter(year_adopted >= 2016) %>%
+  group_by(State) %>%
+  slice(1) %>%
+  select(State) %>% pull()
+
+mult_state_sum$att %>%
+  filter(Level %in% c("Average", early_adopt, late_adopt)) %>%
+  filter(!is.na(Time)) %>%
+  mutate(early = ifelse(Level %in% early_adopt, 1, 0) %>%
+           factor(labels = c("late adopters", "early adopters"))) %>%
+  filter(Time <= 4) %>%
+  ggplot(aes(x = Time, y = Estimate, color = Level)) +
+  geom_point() +
+  geom_line() +
+  geom_vline(xintercept = 0) +
+  facet_grid("early") +
+  theme_bw() +
+  theme(axis.title = element_text(),
+        legend.position = "bottom") +
+  labs(title = 'Synthetic Controls for Medicaid Expansion',
+       subtitle = "Estimated for time cohorts of states"  ) +
+  xlab('Time') +
+  ylab('ATE') +
+  theme(legend.position = "none")
+
+```
+
+
+**Answer**: The plot above shows the estimated ATE using the time cohort method, split by states that adopted Medicaid in 2014 (early adopters) and those that adopted it in 2016 or later (late adopters). Although there are some early adopters that saw increases or no effect in their uninsurance rates, many states saw relatively large decreases compared to the magnitude of the three states who adopted it later. However, this might be an unfair comparison as we only have a few years worth of data from the later adopters, and we know that the magnitude of the ATE increases over time, meaning that these late adopters might see comparatively large declines in their uninsurance rates. 
 
 # General Discussion Questions
 
