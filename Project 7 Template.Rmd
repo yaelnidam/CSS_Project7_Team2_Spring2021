@@ -2,7 +2,7 @@
 title: "Project 7: Difference-in-Differences and Synthetic Control"
 output: html_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 Group Members: Yael, Anthony, Renata and Hero 
@@ -78,22 +78,69 @@ Do the following:
 
 ```{r}
 # Parallel Trends plot
+
+# I tried Texas, North Carolina, Georgia, Alabama, Wisconsin
+
+medicaid_expansion %>%
+  filter(State %in% c("California","Florida")) %>%
+  ggplot() + 
+  geom_point(aes(x = year, 
+                 y = uninsured_rate, 
+                 color = State)) +
+  geom_line(aes(x = year, 
+                y = uninsured_rate, 
+                color = State)) +
+  geom_vline(aes(xintercept = 2014)) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  ggtitle('California and Florida Uninsured Rate \n before/after Medicaid Expansion') +
+  xlab('Year') +
+  ylab('Uninsured Rate')
 ```
 
 - Estimates a difference-in-differences estimate of the effect of the Medicaid expansion on the uninsured share of the population. You may follow the lab example where we estimate the differences in one pre-treatment and one post-treatment period, or take an average of the pre-treatment and post-treatment outcomes
 
 ```{r}
 # Difference-in-Differences estimation
-```
 
+# kansas-colorado
+cf <- medicaid_expansion %>%
+  filter(State %in% c("California","Florida")) %>%
+  filter(year >= 2008 & year<= 2020) 
+
+# pre-treatment difference
+
+pre_diff <- cf %>%
+  filter(year == 2008) %>%
+  select(State, 
+         uninsured_rate) %>%
+  spread(State, 
+         uninsured_rate) %>%
+  summarise(Florida - California)
+  
+# post-treatment difference
+
+post_diff <- cf %>%
+  filter(year == 2020) %>%
+  select(State, 
+         uninsured_rate) %>%
+  spread(State, 
+         uninsured_rate) %>%
+  summarise(Florida - California)
+
+# diff-in-diffs
+
+diff_in_diffs <- post_diff - pre_diff
+diff_in_diffs
+```
 
 ## Discussion Questions
 
 - Card/Krueger's original piece utilized the fact that towns on either side of the Delaware river are likely to be quite similar to one another in terms of demographics, economics, etc. Why is that intuition harder to replicate with this data?
-- **Answer**:
+- **Answer**: This intuition is a bit harder to replicate with this data because we are trying to compare states. Towns cover a much smaller geographic area, and thus, neighboring towns are likely similar geographically. Based on this, it is also likely they are similar in terms of demographics, economics, etc. States, however, can cover vast geographic areas and are likely very different from neighboring states.
 
 - What are the strengths and weaknesses of using the parallel trends assumption in difference-in-differences estimates?
-- **Answer**:
+- **Answer**: The main strength of the parallel trends assumptions is its intuitiveness - it's easily visualized. A weakness, however, is that there is no statistic we can use to determine if one comparison is truly better than another.
 
 
 # Synthetic Control
