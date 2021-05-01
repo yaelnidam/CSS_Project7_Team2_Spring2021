@@ -8,7 +8,7 @@ editor_options:
 Group Members: Yael, Anthony, Renata and Hero 
 
 ```{r}
-#.libPaths("C:/Program Files/R/R-4.0.5/library")
+.libPaths("C:/Program Files/R/R-4.0.5/library")
 # Install and load packages 
 if (!require("pacman")) install.packages("pacman")
 
@@ -58,12 +58,24 @@ Create plots and provide 1-2 sentence analyses to answer the following questions
 - Which states had the highest uninsured rates prior to 2014? The lowest?
 - Which states were home to most uninsured Americans prior to 2014? How about in 2021? **Note**: 2010 state population is provided as a variable to answer this question. In an actual study you would likely use population estimates over time, but to simplify you can assume these numbers stay about the same.
 
+### highest uninsured rates
 ```{r}
-# highest and lowest uninsured rates
+head(medicaid_expansion%>%filter(year<2014)%>%arrange(-uninsured_rate))
 ```
 
+### lowest uninsured rates
 ```{r}
-# most uninsured Americans
+head(medicaid_expansion%>%filter(year<2014)%>%arrange(uninsured_rate))
+```
+
+### most uninsured Americans
+```{r}
+head(
+medicaid_expansion%>%
+  mutate(uninsured_pop = uninsured_rate*population)%>%
+  filter(year<2014)%>%
+  arrange(-uninsured_pop)
+)
 ```
 
 
@@ -310,7 +322,7 @@ Cal_synCal_ridgesynCal %>%
 
 
 - What are the advantages and disadvantages of synthetic control compared to difference-in-differences estimators?
-- **Answer**: 
+- **Answer**: In comparison with Diff-in-Diff, synthetic control estimators have the advantage of automatically calculating the weights for the pre-treatment and counterfactual estimate, so that we don't need to have an assumption of a parallel trend as we had with Diff-in-Diff. At the same time, the use of many controls may not neccessarily be beneficial, and can lead to more bias by averaging the effect.
 
 - One of the benefits of synthetic control is that the weights are bounded between [0,1] and the weights must sum to 1. Augmentation might relax this assumption by allowing for negative weights. Does this create an interpretation problem, and how should we balance this consideration against the improvements augmentation offers in terms of imbalance in the pre-treatment period?
 - **Answer**:
