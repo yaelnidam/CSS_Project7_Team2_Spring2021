@@ -8,7 +8,7 @@ editor_options:
 Group Members: Yael, Anthony, Renata and Hero 
 
 ```{r}
-.libPaths("C:/Program Files/R/R-4.0.5/library")
+#.libPaths("C:/Program Files/R/R-4.0.5/library")
 # Install and load packages 
 if (!require("pacman")) install.packages("pacman")
 
@@ -53,29 +53,81 @@ The dataset you will work with has been assembled from a few different sources a
 
 # Exploratory Data Analysis
 
-Create plots and provide 1-2 sentence analyses to answer the following questions:
+## Highest and Lowest Uninsurance Rates
+The first plot shows the uninsurance rates across years for each state prior to 2014. The plot is hard to read because of the number of states displayed, but we see that there is a large range of uninsurance rates across states (from less than 5% uninsured to almost 25% uninsured) but not as much variation within states over time.  
 
-- Which states had the highest uninsured rates prior to 2014? The lowest?
-- Which states were home to most uninsured Americans prior to 2014? How about in 2021? **Note**: 2010 state population is provided as a variable to answer this question. In an actual study you would likely use population estimates over time, but to simplify you can assume these numbers stay about the same.
-
-### highest uninsured rates
 ```{r}
-head(medicaid_expansion%>%filter(year<2014)%>%arrange(-uninsured_rate))
+
+# highest uninsured rates over time
+medicaid_expansion %>%
+  filter(year < 2014) %>%
+  ggplot(aes(x = year, y = uninsured_rate, color = State)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() + 
+  labs(title = "Uninsurance Rates by State",
+       subtitle = "Limited to pre 2014") +
+  xlab("Year") +
+  ylab("Uninsurance Rate")
+
 ```
 
-### lowest uninsured rates
+To back out which states have the highest uninsurance rates over time, I first limit to the 10 states with the highest average uninsurance rates before 2014. We see from this plot below that Nevada has the most consistent high uninsurance rate. Utah starts higher but then decreased their uninsurance rate considerably in 2010 and Texas started low but then increased their's to above Nevada's in 2010. 
+
 ```{r}
-head(medicaid_expansion%>%filter(year<2014)%>%arrange(uninsured_rate))
+medicaid_expansion %>%
+  filter(year < 2014) %>%
+  group_by(State) %>%
+  mutate(mean = mean(uninsured_rate, na.rm = TRUE)) %>%
+  arrange(-mean) %>%
+  head(60) %>%
+  ggplot(aes(x = year, y = uninsured_rate, color = State)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() + 
+  labs(title = "High Uninsurance Rates",
+       subtitle = "Limited to pre 2014, top 10 states by uninsurance rates") +
+  xlab("Year") +
+  ylab("Uninsurance Rate")
 ```
 
-### most uninsured Americans
+We do the same for the states with the lowest uninsurance rates. Massachusetts has consistently the lowest uninsurance rate of all the states, considerably lower than the rest. This makes sense because the introduced Romney-Care before the ACA came into effect. Most states with low uninsurance rates are located in the north east. 
+
 ```{r}
-head(
+medicaid_expansion %>%
+  filter(year < 2014) %>%
+  group_by(State) %>%
+  mutate(mean = mean(uninsured_rate, na.rm = TRUE)) %>%
+  arrange(mean) %>%
+  head(60) %>%
+  ggplot(aes(x = year, y = uninsured_rate, color = State)) +
+  geom_point() +
+  geom_line() +
+  theme_bw() + 
+  labs(title = "Low Uninsurance Rates",
+       subtitle = "Limited to pre 2014, bottom 10 states by uninsurance rates") +
+  xlab("Year") +
+  ylab("Uninsurance Rate")
+```
+## Most Uninsured People
+
+The plot below shows the number of uninsured people in each state in the year before treatment (2013) and the last year in our data (2020). Even though California did not have one of the highest uninsurance rates, due to it's population size, it has the most uninsured people of any state in 2013, followed by Texas. However, by 2020, California's number of uninsured people had almost halved, due to its increase in insurance rate, however, Texas's had only been reduced by about a million people, meaning it now has the most uninsured people in the country. 
+
+```{r}
+
 medicaid_expansion%>%
   mutate(uninsured_pop = uninsured_rate*population)%>%
-  filter(year<2014)%>%
-  arrange(-uninsured_pop)
-)
+  filter(year == 2013 | year == 2020) %>%
+  ggplot(aes(x = State, y = uninsured_pop)) +
+  geom_col() +
+  facet_wrap("year") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "Uninsured Population by State",
+       subtitle = "Shown for 2013 and 2020") +
+  xlab("State") +
+  ylab("Uninsured Population Count")
+
 ```
 
 
@@ -508,7 +560,7 @@ mult_state_sum$att %>%
 # General Discussion Questions
 
 - Why are DiD and  synthetic control estimates well suited to studies of aggregated units like cities, states, countries, etc?
-- **Answer**:
+- **Answer**: DiD and synthetic control methods are well suited for studying aggregated units because the control and treatment groups can be cleanly separated and observed over time. Applying the DiD/synthetic control methods to the treatment and control units allows us to mimic a natural experiment, providing that we have picked a good counterfactual as our control unit(s) and the parallel trend assumption holds. 
 
 - What role does selection into treatment play in DiD/synthetic control versus regression discontinuity? When would we want to use either method?
-- **Answer**:
+- **Answer**: 
