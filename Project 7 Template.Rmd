@@ -560,7 +560,7 @@ mult_state_sum$att %>%
 # General Discussion Questions
 
 - Why are DiD and  synthetic control estimates well suited to studies of aggregated units like cities, states, countries, etc?
-- **Answer**: DiD and synthetic control methods are well suited for studying aggregated units because the control and treatment groups can be cleanly separated and observed over time. Applying the DiD/synthetic control methods to the treatment and control units allows us to mimic a natural experiment, providing that we have picked a good counterfactual as our control unit(s) and the parallel trend assumption holds. 
+- **Answer**: DiD and synthetic control methods are well suited for studying aggregated units because the control and treatment groups can be cleanly separated and observed over time. Applying the DiD/synthetic control methods to the treatment and control units allows us to mimic a natural experiment, providing that we have picked a good counterfactual as our control unit(s) and the parallel trend assumption holds. Whereas matching and RDD is usually good for individuals, DiD is good for getting a view of how a whole geographic unit is doing.
 
 - What role does selection into treatment play in DiD/synthetic control versus regression discontinuity? When would we want to use either method?
-- **Answer**: 
+- **Answer**: RDD requires a treatment cut off where units are selected into treatment and control as-f random around the cutoff. DiD and synthetic control doesn't have this assumption because units implement a policy (i.e. passing minimum wage law) but instead the natural experiment comes from the similarity between the control and treated units rather than randomization. 
